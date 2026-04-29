@@ -6,9 +6,9 @@ use axum::{Json, Router, http::StatusCode, routing::post};
 use serde::{Serialize};
 use tokio::sync::oneshot;
 
-struct InferenceRequest {
-    inputs: Vec<f32>,
-    response_tx: oneshot::Sender<Vec<f32>>,
+pub struct InferenceRequest {
+    pub inputs: Vec<f32>,
+    pub response_tx: oneshot::Sender<Vec<f32>>,
 }
 
 #[derive(Serialize)]
