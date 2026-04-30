@@ -8,9 +8,9 @@ use crate::web::InferenceRequest;
 
 // the core logic is it selects on global channel, gets the InferenceRequest structure containing 
 // both the inputs and response_tx oneshot::sender, 
-// then waits either for timeout or for enough batchsize and runs inferences for every request.
+// then waits either for timeout or for big enough batch_size and runs inference for every request
 
-// It processed inputs to outputs and sends them with response_tx 
+// It processes inputs to outputs and sends them with response_tx 
 // which is bound to response_rx inside of infer instance, where the response_rx 
 // is waiting for the results.
 
