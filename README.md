@@ -3,13 +3,14 @@
 Implements dynamic request batching: multiple incoming requests are collected into a single   
 batch, run through the model only once. The design significantly reduces per-request overhead  
 for models like LLMs or heavy CV.  
+<mark>WARNING! The project is under active development and thus doesn't work as described yet!</mark>
 
 ### Features
 - uses `tokio` to handle requests
 - timeout-aware - batches are flushed when full or after a configurable idle timeout, preventing excessive latency
 - `axum` HTTP server - simple POST endpoint expecting JSON-arrays
 - ONNX runtime powered by `ort`
-- backpressure! (bounded `std::sync::mpsc` channel)
+- backpressure! (bounded `tokio::sync::mpsc` channel)
 - per-request `tokio::sync::oneshot` channels to ensure the right response order
 
 ### Technological stack
