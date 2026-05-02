@@ -13,7 +13,7 @@ pub struct InferenceRequest {
 
 #[derive(Serialize)]
 struct InferenceResponse {
-    inputs: Vec<f32>
+    outputs: Vec<f32>
 }
 
 static REQUEST_TX: LazyLock<mpsc::Sender<InferenceRequest>> = LazyLock::new(|| {

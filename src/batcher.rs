@@ -22,6 +22,7 @@ impl Batcher {
 
 }
 
+// global_ch_rx is impossible to pass because we only have the sender rn
 async fn run(mut global_ch_rx: Receiver<InferenceRequest>, batch_size: usize, timeout_duration: Duration) {
     let mut buffer = Vec::with_capacity(batch_size);
     let mut timeout = tokio::time::sleep(timeout_duration);
@@ -29,7 +30,7 @@ async fn run(mut global_ch_rx: Receiver<InferenceRequest>, batch_size: usize, ti
         select! {
             biased;
             inf_req = global_ch_rx.recv() => {
-                buffer.push(inf_req.unwrap()); // handle None properly
+                buffer.push(inf_req.unwrap()); // TODO: handle None properly
                 if buffer.len() >= batch_size {
                     let batch = std::mem::take(&mut buffer); // takes ownership of the Vec contents
                     infer_batch(batch).await;                // batch is moved in, buffer is now empty
