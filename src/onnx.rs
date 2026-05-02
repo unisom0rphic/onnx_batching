@@ -16,51 +16,18 @@ impl OnnxModel {
         Ok( Self{session} )
     }
 
-    /// Runs inference for the provided session
+    /// Runs batched inference for the provided session
     pub fn batch_infer(&mut self, input_batch: Vec<Vec<f32>>) -> ort::Result<Vec<Vec<f32>>> {
-        let batch_size = input_batch.len();
-        if batch_size == 0 {
-            return Ok(vec![]);
-        }
-        let feature_dim = input_batch[0].len();
+        // should run batched inference for the input batch,
+        // which is either a 2D vector or NDarray
 
-        // Flatten input and create a 2D array
-        let flat: Vec<f32> = input_batch.into_iter().flatten().collect();
-        let array = Array2::from_shape_vec((batch_size, feature_dim), flat)
-            .map_err(|e| ort::Error::new(e.to_string()))?;
+        // outputs (self.session.run()) is SessionOutputs<'_>
+        // and outputs[i].try_extract_tensor() returns (&Shape, &[f32])
 
-        // Run the model
-        let outputs = self
-            .session
-            .run(ort::inputs![TensorRef::from_array_view(&array)?])?;
+        // https://docs.rs/ort/latest/ort/session/struct.SessionOutputs.html
 
-        // Assume a single output – pick the first one
-        let (_output_name, output_value) = outputs
-            .into_iter()
-            .next()
-            .ok_or_else(|| ort::Error::new("Model produced no outputs"))?;
-
-        // Extract an owned array (consumes output_value)
-        let view = output_value.try_extract_array::<f32>()?;
-        let data: ndarray::ArrayD<f32> =     view.to_owned();
-
-        // Verify it's 2D
-        let shape = data.shape().to_vec();
-        if shape.len() != 2 {
-            return Err(ort::Error::new(format!(
-                "Expected output of rank 2, got shape {:?}",
-                shape
-            )));
-        }
-
-        // Convert to Vec<Vec<f32>> by iterating over rows
-        let result: Vec<Vec<f32>> = data
-            .to_shape((shape[0], shape[1]))
-            .map_err(|e: ShapeError| ort::Error::new(e.to_string()))?
-            .axis_iter(Axis(0))
-            .map(|row: ArrayBase<ViewRepr<&f32>, Dim<[usize; 1]>, f32>| row.to_vec())
-            .collect();
-
-        Ok(result)
+        // we can *probably* iterate through outputs though not sure,
+        // iirc it contains three fields which are keys, values and length?
+        todo!("WIP");
     }
 }
