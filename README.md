@@ -71,7 +71,7 @@ cargo run --release
 `POST /predict`  
 *Request body:* JSON array of floats (input features)  
 `[0.1, 0.2, 0.3, ...]`  
-*Reponse:* JSON array of floats  
+*Response:* JSON array of floats  
 `[0.7, ...]`
 
 **Status codes:**  
