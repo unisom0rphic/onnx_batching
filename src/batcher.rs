@@ -1,29 +1,36 @@
 use ort::session::SessionOutputs;
-use tokio::{select, task, sync::{mpsc::{Receiver, Sender}, oneshot}};
 use std::{sync::Arc, time::Duration};
+use tokio::{
+    select,
+    sync::{
+        mpsc::{Receiver, Sender},
+        oneshot,
+    },
+    task,
+};
 
 use crate::onnx::OnnxModel;
 
 use crate::web::InferenceRequest;
 
-// the core logic is it selects on global channel, gets the InferenceRequest structure containing 
-// both the inputs and response_tx oneshot::sender, 
+// the core logic is it selects on global channel, gets the InferenceRequest structure containing
+// both the inputs and response_tx oneshot::sender,
 // then waits either for timeout or for big enough batch_size and runs inference for every request
 
-// It processes inputs to outputs and sends them with response_tx 
-// which is bound to response_rx inside of infer instance, where the response_rx 
+// It processes inputs to outputs and sends them with response_tx
+// which is bound to response_rx inside of infer instance, where the response_rx
 // is waiting for the results.
 
-struct Batcher {
-    
-}
+struct Batcher {}
 
-impl Batcher {
-
-}
+impl Batcher {}
 
 // global_ch_rx is impossible to pass because we only have the sender rn
-async fn run(mut global_ch_rx: Receiver<InferenceRequest>, batch_size: usize, timeout_duration: Duration) {
+async fn run(
+    mut global_ch_rx: Receiver<InferenceRequest>,
+    batch_size: usize,
+    timeout_duration: Duration,
+) {
     let mut buffer = Vec::with_capacity(batch_size);
     let mut timeout = tokio::time::sleep(timeout_duration);
     loop {
@@ -52,7 +59,8 @@ async fn run(mut global_ch_rx: Receiver<InferenceRequest>, batch_size: usize, ti
 // Vec<T> is *guaranteed* to be *contiguous* in memory;
 // Vec<T> is already a pointer to heap-allocated memory
 // If the function receives an array, it needs to allocate new Vec
-async fn infer_batch(batch: Vec<InferenceRequest>) {  // take ownership, not &[]
+async fn infer_batch(batch: Vec<InferenceRequest>) {
+    // take ownership, not &[]
     let inputs: Vec<Vec<f32>> = batch.iter().map(|req| req.inputs.clone()).collect();
     // Run batch inference once (e.g., model.run(&inputs))
     let outputs = run_batch_inference(&inputs).await;
@@ -61,6 +69,6 @@ async fn infer_batch(batch: Vec<InferenceRequest>) {  // take ownership, not &[]
     }
 }
 
-async fn run_batch_inference(inputs: &Vec<Vec<f32>>) -> Vec<Vec<f32>>{
+async fn run_batch_inference(inputs: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
     inputs.to_vec()
 }

@@ -3,7 +3,7 @@ use std::sync::LazyLock;
 use tokio::sync::mpsc;
 
 use axum::{Json, Router, http::StatusCode, routing::post};
-use serde::{Serialize};
+use serde::Serialize;
 use tokio::sync::oneshot;
 
 pub struct InferenceRequest {
@@ -13,7 +13,7 @@ pub struct InferenceRequest {
 
 #[derive(Serialize)]
 struct InferenceResponse {
-    outputs: Vec<f32>
+    outputs: Vec<f32>,
 }
 
 static REQUEST_TX: LazyLock<mpsc::Sender<InferenceRequest>> = LazyLock::new(|| {
@@ -29,24 +29,32 @@ static REQUEST_TX: LazyLock<mpsc::Sender<InferenceRequest>> = LazyLock::new(|| {
     tx
 });
 
-async fn send_infer_request(Json(inputs): Json<Vec<f32>>) -> Result<Json<Vec<f32>>, (StatusCode, String)>{
+async fn send_infer_request(
+    Json(inputs): Json<Vec<f32>>,
+) -> Result<Json<Vec<f32>>, (StatusCode, String)> {
     let (response_tx, response_rx) = oneshot::channel();
-    let req = InferenceRequest { inputs, response_tx };
-    REQUEST_TX.send(req).await
-        .map_err(|e| (StatusCode::SERVICE_UNAVAILABLE, format!("Batch queue full: {}", e)))?;
-    let result = response_rx.await
-        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Inference failed: {}", e)))?;
+    let req = InferenceRequest {
+        inputs,
+        response_tx,
+    };
+    REQUEST_TX.send(req).await.map_err(|e| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            format!("Batch queue full: {}", e),
+        )
+    })?;
+    let result = response_rx.await.map_err(|e| {
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            format!("Inference failed: {}", e),
+        )
+    })?;
     Ok(Json(result))
 }
 
 #[tokio::main]
 async fn main() {
-    let app = Router::new().route(
-        "/predict", 
-        post(send_infer_request
-    )
-);
-
+    let app = Router::new().route("/predict", post(send_infer_request));
 
     // TODO: remove unwraps
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

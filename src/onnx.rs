@@ -1,8 +1,11 @@
 use ndarray::{Array, Array2, ArrayBase, Axis, Dim, ShapeError, ViewRepr};
-use ort::{session::{Session, SessionOutputs}, value::{Tensor, TensorRef}};
+use ort::{
+    session::{Session, SessionOutputs},
+    value::{Tensor, TensorRef},
+};
 
 pub struct OnnxModel {
-    session: Session
+    session: Session,
 }
 
 impl OnnxModel {
@@ -13,7 +16,7 @@ impl OnnxModel {
 
         let session = Session::builder()?.commit_from_file(path)?;
 
-        Ok( Self{session} )
+        Ok(Self { session })
     }
 
     /// Runs batched inference for the provided session
@@ -32,13 +35,16 @@ impl OnnxModel {
         let columns = input_batch[0].len();
 
         let inputs = ndarray::Array2::<f32>::from_shape_vec(
-            (rows, columns), input_batch.into_iter().flatten().collect()
+            (rows, columns),
+            input_batch.into_iter().flatten().collect(),
         )
         .map_err(|e| ort::Error::new(e.to_string()))?;
 
-        let outputs = self.session.run(ort::inputs![TensorRef::from_array_view(&inputs)?])?;
-        for el in outputs{ 
-           // el is &str, Value??? what is that 😭😭😭
+        let outputs = self
+            .session
+            .run(ort::inputs![TensorRef::from_array_view(&inputs)?])?;
+        for el in outputs {
+            // el is &str, Value??? what is that 😭😭😭
         }
         // let tensors = outputs[0].try_extract_tensor::<f32>()?;
         // TODO: are &[f32] values?

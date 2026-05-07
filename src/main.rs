@@ -1,6 +1,6 @@
+mod batcher;
 mod onnx;
 mod web;
-mod batcher;
 
 fn main() {
     // WIP
