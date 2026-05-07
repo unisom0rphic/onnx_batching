@@ -1,9 +1,5 @@
 use std::time::Duration;
-use tokio::{
-    select,
-    sync::mpsc::Receiver,
-};
-
+use tokio::{select, sync::mpsc::Receiver};
 
 use crate::web::InferenceRequest;
 
@@ -14,6 +10,8 @@ use crate::web::InferenceRequest;
 // It processes inputs to outputs and sends them with response_tx
 // which is bound to response_rx inside of infer instance, where the response_rx
 // is waiting for the results.
+
+// TODO: graceful shutdown
 
 struct Batcher {}
 
@@ -41,7 +39,7 @@ async fn run(
             _ = timeout => {
                 if !buffer.is_empty() {
                     let batch = std::mem::take(&mut buffer);
-                    infer_batch(batch).await;
+                    infer_batch(batch).await; // TODO: consider tokio::spawn instead
                 }
                 timeout = tokio::time::sleep(timeout_duration);
             }
@@ -52,7 +50,7 @@ async fn run(
 // NOTE: using &Vec<T> instead of &[T] is an antipattern because
 // Vec<T> is *guaranteed* to be *contiguous* in memory;
 // Vec<T> is already a pointer to heap-allocated memory
-// If the function receives an array, it needs to allocate new Vec
+// so we basically force Vec when we can accept an array too (not good)
 async fn infer_batch(batch: Vec<InferenceRequest>) {
     // take ownership, not &[]
     let inputs: Vec<Vec<f32>> = batch.iter().map(|req| req.inputs.clone()).collect();
@@ -63,6 +61,7 @@ async fn infer_batch(batch: Vec<InferenceRequest>) {
     }
 }
 
-async fn run_batch_inference(inputs: &Vec<Vec<f32>>) -> Vec<Vec<f32>> {
+async fn run_batch_inference(inputs: &[Vec<f32>]) -> Vec<Vec<f32>> {
+    // TODO: finish
     inputs.to_vec()
 }

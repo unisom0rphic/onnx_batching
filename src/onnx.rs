@@ -1,7 +1,4 @@
-use ort::{
-    session::Session,
-    value::Tensor,
-};
+use ort::{session::Session, value::Tensor};
 
 pub struct OnnxModel {
     session: Session,
