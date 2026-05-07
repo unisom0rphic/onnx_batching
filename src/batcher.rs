@@ -1,15 +1,9 @@
-use ort::session::SessionOutputs;
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 use tokio::{
     select,
-    sync::{
-        mpsc::{Receiver, Sender},
-        oneshot,
-    },
-    task,
+    sync::mpsc::Receiver,
 };
 
-use crate::onnx::OnnxModel;
 
 use crate::web::InferenceRequest;
 

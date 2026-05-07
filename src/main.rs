@@ -5,5 +5,5 @@ mod web;
 fn main() {
     // WIP
     let path = "path";
-    let model = onnx::OnnxModel::load_onnx(path).expect("Failed to load lol");
+    let _model = onnx::OnnxModel::load_onnx(path).expect("Failed to load lol");
 }

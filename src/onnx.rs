@@ -1,9 +1,7 @@
-use ndarray::{Array, Array2, ArrayBase, Axis, Dim, ShapeError, ViewRepr};
 use ort::{
-    session::{Session, SessionOutputs},
-    value::{Tensor, TensorRef},
+    session::Session,
+    value::Tensor,
 };
-use tokio::time::interval_at;
 
 pub struct OnnxModel {
     session: Session,
