@@ -1,6 +1,8 @@
 use std::time::Duration;
 use tokio::{select, sync::mpsc::Receiver};
 
+use log::debug;
+
 use crate::web::InferenceRequest;
 
 // the core logic is it selects on global channel, gets the InferenceRequest structure containing
@@ -29,8 +31,10 @@ async fn run(
         select! {
             biased;
             inf_req = global_ch_rx.recv() => {
+                debug!("Received data from global_ch_rx: {:?}", inf_req);
                 buffer.push(inf_req.unwrap()); // TODO: handle None properly
                 if buffer.len() >= batch_size {
+                    debug!("Send batch to processing (enough batch_size)");
                     let batch = std::mem::take(&mut buffer); // takes ownership of the Vec contents
                     infer_batch(batch).await;                // batch is moved in, buffer is now empty
                 }
@@ -38,6 +42,7 @@ async fn run(
             }
             _ = timeout => {
                 if !buffer.is_empty() {
+                    debug!("Send batch to processing (timeout)");
                     let batch = std::mem::take(&mut buffer);
                     infer_batch(batch).await; // TODO: consider tokio::spawn instead
                 }
@@ -55,13 +60,11 @@ async fn infer_batch(batch: Vec<InferenceRequest>) {
     // take ownership, not &[]
     let inputs: Vec<Vec<f32>> = batch.iter().map(|req| req.inputs.clone()).collect();
     // Run batch inference once (e.g., model.run(&inputs))
-    let outputs = run_batch_inference(&inputs).await;
+    debug!("Starting inference");
+    // TODO: call ONNX HERE for the batch
+    let outputs = vec![vec![]];
+    debug!("Inference complete. Results: {:?}", outputs);
     for (req, output) in batch.into_iter().zip(outputs) {
         let _ = req.response_tx.send(output);
     }
-}
-
-async fn run_batch_inference(inputs: &[Vec<f32>]) -> Vec<Vec<f32>> {
-    // TODO: finish
-    inputs.to_vec()
 }

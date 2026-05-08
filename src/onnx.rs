@@ -1,3 +1,4 @@
+use log::debug;
 use ort::{session::Session, value::Tensor};
 
 pub struct OnnxModel {
@@ -10,6 +11,7 @@ impl OnnxModel {
     // TODO: with_intra_threads for multithreading
     /// Loads specified ONNX model from PATH
     pub fn load_onnx(path: &str) -> ort::Result<Self> {
+        debug!("Loading model from {}", path);
         ONNX_INIT.call_once(|| {
             ort::init().commit();
         });
@@ -22,6 +24,8 @@ impl OnnxModel {
     /// Runs batched inference for the provided session
     pub fn batch_infer(&mut self, input_batch: Vec<Vec<f32>>) -> ort::Result<Vec<Vec<f32>>> {
         // TODO: accept either Vec<Vec<f32>> or Array2<f32> (via enum) and pattern match
+        debug!("ONNX model inference called");
+        debug!("Inputs: {:?}", input_batch);
         let rows = input_batch.len();
         if rows == 0 {
             return Ok(vec![]);
