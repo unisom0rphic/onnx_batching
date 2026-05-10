@@ -26,6 +26,7 @@ impl OnnxModel {
 
     /// Runs batched inference for the provided session
     pub fn batch_infer(&mut self, request_vec: Vec<InferenceRequest>) -> ort::Result<()> {
+        // TODO: add validation here
         let (inputs_vec, senders_vec): (Vec<Vec<f32>>, Vec<oneshot::Sender<Vec<f32>>>) =
             request_vec
                 .into_iter()
@@ -49,7 +50,6 @@ impl OnnxModel {
 
         let inputs = Tensor::from_array(inputs)?;
 
-        // SESSION RUN FAILS
         // https://docs.rs/ort/latest/ort/session/struct.SessionOutputs.html
         let outputs = self.session.run(ort::inputs!["input" => inputs])?;
         debug!("inputs but tensor: {:?}", outputs);

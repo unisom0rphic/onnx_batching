@@ -8,12 +8,12 @@ use log::debug;
 use crate::onnx::OnnxModel;
 use crate::web::InferenceRequest;
 
-// the core logic is it selects on global channel, gets the InferenceRequest structure containing
+// the core logic is that it selects on global channel, gets the InferenceRequest containing
 // both the inputs and response_tx oneshot::sender,
-// then waits either for timeout or for big enough batch_size and runs inference for every request
+// then waits either for timeout or for big enough batch_size and runs inference for all requests at once
 
 // It processes inputs to outputs and sends them with response_tx
-// which is bound to response_rx inside of infer instance, where the response_rx
+// which is bound to response_rx inside of send_infer_request instance, where the response_rx
 // is waiting for the results.
 
 // TODO: graceful shutdown
@@ -33,7 +33,6 @@ impl Batcher {
 
     pub async fn run(
         &self,
-        // TODO: global_ch_rx is impossible to pass because we only have the sender rn
         mut global_ch_rx: Receiver<InferenceRequest>,
         batch_size: usize,
         timeout_duration: Duration,
@@ -50,11 +49,13 @@ impl Batcher {
                         debug!("Send batch to processing (enough batch_size)");
                         let batch = std::mem::take(&mut buffer);
                         let model_clone = self.model.clone();
+                        // TODO: handle results don't just swallow them
                         let _ = spawn_blocking(
                             move || {
                                 // FIXME: handle unwrap()
+                                // if one request fails - everything fails!
+                                // because we have no validation
                                 let mut model = model_clone.lock().unwrap();
-                                // need to extract data from requests
                                 let _ = model.batch_infer(batch);
                             }
                         ).await;
@@ -71,6 +72,8 @@ impl Batcher {
                             move || {
                                 let mut model = model_clone.lock().unwrap();
                                 let error = model.batch_infer(batch);
+                                // First of all: do NOT print values without context
+                                // Second of all: do proper handling
                                 debug!("{:?}", error);
                             }
                         ).await;
