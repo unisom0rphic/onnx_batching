@@ -1,8 +1,11 @@
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::time::Duration;
-use tokio::{select, sync::mpsc::Receiver};
+use tokio::{select, sync::mpsc::Receiver, task::spawn_blocking};
 
 use log::debug;
 
+use crate::onnx::OnnxModel;
 use crate::web::InferenceRequest;
 
 // the core logic is it selects on global channel, gets the InferenceRequest structure containing
@@ -15,56 +18,70 @@ use crate::web::InferenceRequest;
 
 // TODO: graceful shutdown
 
-struct Batcher {}
-
-impl Batcher {}
-
-// global_ch_rx is impossible to pass because we only have the sender rn
-async fn run(
-    mut global_ch_rx: Receiver<InferenceRequest>,
-    batch_size: usize,
-    timeout_duration: Duration,
-) {
-    let mut buffer = Vec::with_capacity(batch_size);
-    let mut timeout = tokio::time::sleep(timeout_duration);
-    loop {
-        select! {
-            biased;
-            inf_req = global_ch_rx.recv() => {
-                debug!("Received data from global_ch_rx: {:?}", inf_req);
-                buffer.push(inf_req.unwrap()); // TODO: handle None properly
-                if buffer.len() >= batch_size {
-                    debug!("Send batch to processing (enough batch_size)");
-                    let batch = std::mem::take(&mut buffer); // takes ownership of the Vec contents
-                    infer_batch(batch).await;                // batch is moved in, buffer is now empty
-                }
-                timeout = tokio::time::sleep(timeout_duration);
-            }
-            _ = timeout => {
-                if !buffer.is_empty() {
-                    debug!("Send batch to processing (timeout)");
-                    let batch = std::mem::take(&mut buffer);
-                    infer_batch(batch).await; // TODO: consider tokio::spawn instead
-                }
-                timeout = tokio::time::sleep(timeout_duration);
-            }
-        }
-    }
+struct Batcher {
+    model: Arc<Mutex<OnnxModel>>,
 }
 
-// NOTE: using &Vec<T> instead of &[T] is an antipattern because
-// Vec<T> is *guaranteed* to be *contiguous* in memory;
-// Vec<T> is already a pointer to heap-allocated memory
-// so we basically force Vec when we can accept an array too (not good)
-async fn infer_batch(batch: Vec<InferenceRequest>) {
-    // take ownership, not &[]
-    let inputs: Vec<Vec<f32>> = batch.iter().map(|req| req.inputs.clone()).collect();
-    // Run batch inference once (e.g., model.run(&inputs))
-    debug!("Starting inference");
-    // TODO: call ONNX HERE for the batch
-    let outputs = vec![vec![]];
-    debug!("Inference complete. Results: {:?}", outputs);
-    for (req, output) in batch.into_iter().zip(outputs) {
-        let _ = req.response_tx.send(output);
+impl Batcher {
+    /// Initializes model from path
+    fn init(path: &str) -> Self {
+        let model = OnnxModel::load_onnx(path);
+        match model {
+            Ok(model) => {
+                return Self {
+                    model: Arc::new(Mutex::new(model)),
+                };
+            }
+            Err(_) => panic!("Model couldn't be loaded"),
+        }
+    }
+
+    async fn run(
+        &self,
+        // TODO: global_ch_rx is impossible to pass because we only have the sender rn
+        mut global_ch_rx: Receiver<InferenceRequest>,
+        batch_size: usize,
+        timeout_duration: Duration,
+    ) {
+        let mut buffer = Vec::with_capacity(batch_size);
+        let mut timeout = tokio::time::sleep(timeout_duration);
+        loop {
+            select! {
+                biased;
+                Some(inf_req) = global_ch_rx.recv() => {
+                    debug!("Received data from global_ch_rx: {:?}", inf_req);
+                    buffer.push(inf_req);
+                    if buffer.len() >= batch_size {
+                        debug!("Send batch to processing (enough batch_size)");
+                        let batch = std::mem::take(&mut buffer);
+                        let model_clone = self.model.clone();
+                        let _ = spawn_blocking(
+                            move || {
+                                // FIXME: handle unwrap()
+                                let mut model = model_clone.lock().unwrap();
+                                // need to extract data from requests
+                                model.batch_infer(batch);
+                            }
+                        );
+                    }
+                    timeout = tokio::time::sleep(timeout_duration);
+                }
+                _ = timeout => {
+                    if !buffer.is_empty() {
+                        debug!("Send batch to processing (timeout)");
+                        let batch = std::mem::take(&mut buffer);
+                        let model_clone = self.model.clone();
+                        // same issues here, look above for information
+                        let _ = spawn_blocking(
+                            move || {
+                                let mut model = model_clone.lock().unwrap();
+                                model.batch_infer(batch);
+                            }
+                        );
+                    }
+                    timeout = tokio::time::sleep(timeout_duration);
+                }
+            }
+        }
     }
 }
