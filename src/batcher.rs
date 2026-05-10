@@ -25,14 +25,9 @@ struct Batcher {
 impl Batcher {
     /// Initializes model from path
     fn init(path: &str) -> Self {
-        let model = OnnxModel::load_onnx(path);
-        match model {
-            Ok(model) => {
-                return Self {
-                    model: Arc::new(Mutex::new(model)),
-                };
-            }
-            Err(_) => panic!("Model couldn't be loaded"),
+        let model = OnnxModel::load_onnx(path).expect("Model couldn't be loaded");
+        Self {
+            model: Arc::new(Mutex::new(model)),
         }
     }
 

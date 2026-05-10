@@ -1,5 +1,8 @@
 use log::debug;
 use ort::{session::Session, value::Tensor};
+use tokio::sync::oneshot;
+
+use crate::web::InferenceRequest;
 
 pub struct OnnxModel {
     session: Session,
@@ -22,19 +25,25 @@ impl OnnxModel {
     }
 
     /// Runs batched inference for the provided session
-    pub fn batch_infer(&mut self, input_batch: Vec<Vec<f32>>) -> ort::Result<Vec<Vec<f32>>> {
-        // TODO: accept either Vec<Vec<f32>> or Array2<f32> (via enum) and pattern match
+    pub fn batch_infer(&mut self, request_vec: Vec<InferenceRequest>) -> ort::Result<()> {
+        let (inputs_vec, senders_vec): (Vec<Vec<f32>>, Vec<oneshot::Sender<Vec<f32>>>) =
+            request_vec
+                .into_iter()
+                .map(|r| (r.inputs, r.response_tx))
+                .unzip();
+
         debug!("ONNX model inference called");
-        debug!("Inputs: {:?}", input_batch);
-        let rows = input_batch.len();
+        debug!("Inputs: {:?}", inputs_vec);
+
+        let rows = inputs_vec.len();
         if rows == 0 {
-            return Ok(vec![]);
+            return Ok(());
         }
-        let columns = input_batch[0].len();
+        let columns = inputs_vec[0].len();
 
         let inputs = ndarray::Array2::<f32>::from_shape_vec(
             (rows, columns),
-            input_batch.into_iter().flatten().collect(),
+            inputs_vec.into_iter().flatten().collect(),
         )
         .map_err(|e| ort::Error::new(e.to_string()))?;
 
@@ -49,11 +58,15 @@ impl OnnxModel {
 
         let out_cols = shape[1] as usize;
 
-        let result = tensor_data
+        let results: Vec<_> = tensor_data
             .chunks_exact(out_cols)
             .map(|chunk| chunk.to_vec())
             .collect();
 
-        Ok(result)
+        for (sender, result) in senders_vec.into_iter().zip(results) {
+            let _ = sender.send(result);
+        }
+
+        Ok(())
     }
 }
