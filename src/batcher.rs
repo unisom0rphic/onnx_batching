@@ -18,20 +18,20 @@ use crate::web::InferenceRequest;
 
 // TODO: graceful shutdown
 
-struct Batcher {
+pub struct Batcher {
     model: Arc<Mutex<OnnxModel>>,
 }
 
 impl Batcher {
     /// Initializes model from path
-    fn init(path: &str) -> Self {
+    pub fn init(path: &str) -> Self {
         let model = OnnxModel::load_onnx(path).expect("Model couldn't be loaded");
         Self {
             model: Arc::new(Mutex::new(model)),
         }
     }
 
-    async fn run(
+    pub async fn run(
         &self,
         // TODO: global_ch_rx is impossible to pass because we only have the sender rn
         mut global_ch_rx: Receiver<InferenceRequest>,
@@ -55,9 +55,9 @@ impl Batcher {
                                 // FIXME: handle unwrap()
                                 let mut model = model_clone.lock().unwrap();
                                 // need to extract data from requests
-                                model.batch_infer(batch);
+                                let _ = model.batch_infer(batch);
                             }
-                        );
+                        ).await;
                     }
                     timeout = tokio::time::sleep(timeout_duration);
                 }
@@ -70,9 +70,10 @@ impl Batcher {
                         let _ = spawn_blocking(
                             move || {
                                 let mut model = model_clone.lock().unwrap();
-                                model.batch_infer(batch);
+                                let error = model.batch_infer(batch);
+                                debug!("{:?}", error);
                             }
-                        );
+                        ).await;
                     }
                     timeout = tokio::time::sleep(timeout_duration);
                 }

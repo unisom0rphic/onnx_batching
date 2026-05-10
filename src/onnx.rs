@@ -49,8 +49,10 @@ impl OnnxModel {
 
         let inputs = Tensor::from_array(inputs)?;
 
+        // SESSION RUN FAILS
         // https://docs.rs/ort/latest/ort/session/struct.SessionOutputs.html
         let outputs = self.session.run(ort::inputs!["input" => inputs])?;
+        debug!("inputs but tensor: {:?}", outputs);
 
         // outputs is basically a hashmap {output: value} but as a tuple
         let value = &outputs["output"];
@@ -62,6 +64,7 @@ impl OnnxModel {
             .chunks_exact(out_cols)
             .map(|chunk| chunk.to_vec())
             .collect();
+        debug!("Inference results: {:?}", results);
 
         for (sender, result) in senders_vec.into_iter().zip(results) {
             let _ = sender.send(result);
