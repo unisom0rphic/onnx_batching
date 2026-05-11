@@ -1,9 +1,10 @@
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::Duration;
+use tokio::spawn;
 use tokio::{select, sync::mpsc::Receiver, task::spawn_blocking};
 
-use log::debug;
+use log::{debug, error, info};
 
 use crate::onnx::OnnxModel;
 use crate::web::InferenceRequest;
@@ -50,15 +51,23 @@ impl Batcher {
                         let batch = std::mem::take(&mut buffer);
                         let model_clone = self.model.clone();
                         // TODO: handle results don't just swallow them
-                        let _ = spawn_blocking(
+                        let handle = spawn_blocking(
                             move || {
                                 // FIXME: handle unwrap()
                                 // if one request fails - everything fails!
                                 // because we have no validation
                                 let mut model = model_clone.lock().unwrap();
-                                let _ = model.batch_infer(batch);
+                                model.batch_infer(batch)
                             }
-                        ).await;
+                        );
+
+                        // TEST: shouldn't block now
+                        spawn(async move {
+                            match handle.await {
+                            Ok(Ok(())) => info!("Handle awaited succesfully"),
+                            Ok(Err(e)) => error!("Select loop handled etc {}", e),
+                            Err(e) => error!("Select loop handled etc {}", e),
+                        }});
                     }
                     timeout = tokio::time::sleep(timeout_duration);
                 }
@@ -68,15 +77,19 @@ impl Batcher {
                         let batch = std::mem::take(&mut buffer);
                         let model_clone = self.model.clone();
                         // same issues here, look above for information
-                        let _ = spawn_blocking(
+                        let handle = spawn_blocking(
                             move || {
                                 let mut model = model_clone.lock().unwrap();
-                                let error = model.batch_infer(batch);
-                                // First of all: do NOT print values without context
-                                // Second of all: do proper handling
-                                debug!("{:?}", error);
+                                model.batch_infer(batch)
                             }
-                        ).await;
+                        );
+
+                        spawn(async move {
+                            match handle.await {
+                            Ok(Ok(())) => info!("Handle awaited succesfully"),
+                            Ok(Err(e)) => error!("Select loop handled etc {}", e),
+                            Err(e) => error!("Select loop handled etc {}", e),
+                        }});
                     }
                     timeout = tokio::time::sleep(timeout_duration);
                 }
