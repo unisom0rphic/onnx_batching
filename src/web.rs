@@ -1,12 +1,11 @@
-use std::sync::LazyLock;
-
-use tokio::sync::mpsc;
-
-use axum::{Json, Router, http::StatusCode, routing::post};
-use serde::Serialize;
-use tokio::sync::oneshot;
-
+use axum::{
+    Json, Router,
+    extract::State,
+    http::StatusCode,
+    routing::post,
+};
 use log::{debug, info};
+use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug)]
 pub struct InferenceRequest {
@@ -14,25 +13,8 @@ pub struct InferenceRequest {
     pub response_tx: oneshot::Sender<Vec<f32>>,
 }
 
-#[derive(Serialize, Debug)]
-struct InferenceResponse {
-    outputs: Vec<f32>,
-}
-
-static REQUEST_TX: LazyLock<mpsc::Sender<InferenceRequest>> = LazyLock::new(|| {
-    let (tx, mut rx) = mpsc::channel::<InferenceRequest>(100);
-    tokio::spawn(async move {
-        // infinite loop waiting for rx
-        while let Some(req) = rx.recv().await {
-            // replace with batcher.run(req)
-            let result = vec![];
-            let _ = req.response_tx.send(result);
-        }
-    });
-    tx
-});
-
 async fn send_infer_request(
+    State(request_tx): State<mpsc::Sender<InferenceRequest>>,
     Json(inputs): Json<Vec<f32>>,
 ) -> Result<Json<Vec<f32>>, (StatusCode, String)> {
     info!("Received JSON for inference: {:?}", inputs);
@@ -42,7 +24,7 @@ async fn send_infer_request(
         response_tx,
     };
     debug!("Sending data to global channel");
-    REQUEST_TX.send(req).await.map_err(|e| {
+    request_tx.send(req).await.map_err(|e| {
         (
             StatusCode::SERVICE_UNAVAILABLE,
             format!("Batch queue full: {}", e),
@@ -58,15 +40,14 @@ async fn send_infer_request(
     Ok(Json(result))
 }
 
-#[tokio::main]
-async fn main() {
+pub async fn run(request_tx: mpsc::Sender<InferenceRequest>) {
     const ADDRESS: &str = "0.0.0.0:3000";
-    env_logger::init();
-    let app = Router::new().route("/predict", post(send_infer_request));
+    let app = Router::new()
+        .route("/predict", post(send_infer_request))
+        .with_state(request_tx);
 
     // TODO: remove unwraps
     let listener = tokio::net::TcpListener::bind(ADDRESS).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
-
     info!("Started HTTP server on {ADDRESS}");
+    axum::serve(listener, app).await.unwrap();
 }
