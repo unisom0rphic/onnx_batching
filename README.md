@@ -1,9 +1,8 @@
-# Batch Inference Server for ONNX inference
+# Batch Inference Server for ONNX
 **An asynchronous, high-throughput educational project written in Rust**  
 Implements dynamic request batching: multiple incoming requests are collected into a single   
 batch, run through the model only once. The design significantly reduces per-request overhead  
 for models like LLMs or heavy CV.  
-<mark>WARNING! The project is under active development and thus doesn't work as described yet!</mark>
 
 ### Features
 - uses `tokio` to handle requests
